@@ -1,4 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { Zip, ZipPassThrough } from 'fflate'
+import { createCutBatches } from '../utils/cutBatch.js'
+
+function downloadBlob(blob, filename) {
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  a.click()
+  setTimeout(() => URL.revokeObjectURL(url), 10000)
+}
 
 const MIME_CANDIDATES = [
   'video/mp4;codecs=h264',
@@ -11,6 +22,7 @@ const MAX_DIMENSION = 1920
 const MAX_SCALE = 4
 
 export default function useRecorder({
+  cutBatchSize, cutBatchRepeats, cutBatchRequest,
   cutRepeats, cutExportRequest, stopRequest, cutSpeed, onRecordingStatus,
   stageSizeRef,
   sizeRef,
@@ -26,6 +38,8 @@ export default function useRecorder({
   const [isPreparing, setIsPreparing] = useState(false)
   const [cutRecordingIndex, setCutRecordingIndex] = useState(null)
   const busyRef = useRef(false)
+  const batchRef = useRef(null)
+  const batchRequestRef = useRef(cutBatchRequest)
   const prepareTokenRef = useRef(0)
   const exportRequestRef = useRef(cutExportRequest)
   const stopRequestRef = useRef(stopRequest)
@@ -33,31 +47,32 @@ export default function useRecorder({
   const chunksRef = useRef([])
   const canvasStreamRef = useRef(null)
   const rafRef = useRef(null)
+  const visibilityCleanupRef = useRef(null)
   const mimeRef = useRef('video/webm')
   const imageElementsRef = useRef(new Map())
 
-  useEffect(() => {
-    images.forEach((img) => {
-      if (!imageElementsRef.current.has(img.url)) {
-        const el = new Image()
-        el.src = img.url
-        imageElementsRef.current.set(img.url, el)
-      }
-    })
-  }, [images])
+  const reportStatus = useCallback((status) => {
+    const batch = batchRef.current
+    onRecordingStatus(batch ? { ...status, busy: true, batch: true,
+      completed: batch.completed, total: batch.total, range: batch.range } : status)
+  }, [onRecordingStatus])
 
   const cleanup = useCallback(() => {
     if (rafRef.current) cancelAnimationFrame(rafRef.current)
     rafRef.current = null
+    visibilityCleanupRef.current?.()
+    visibilityCleanupRef.current = null
+    imageElementsRef.current.clear()
     busyRef.current = false
     setIsPreparing(false)
     setCutRecordingIndex(null)
-    onRecordingStatus({ busy: false, error: '' })
+    reportStatus({ busy: false, error: '' })
     canvasStreamRef.current?.getTracks().forEach((t) => t.stop())
     canvasStreamRef.current = null
-  }, [onRecordingStatus])
+  }, [reportStatus])
 
   const stopRecording = useCallback(() => {
+    if (batchRef.current) batchRef.current.cancelled = true
     prepareTokenRef.current += 1
     if (busyRef.current && !recorderRef.current) cleanup()
     if (recorderRef.current && recorderRef.current.state !== 'inactive') {
@@ -65,11 +80,13 @@ export default function useRecorder({
     }
   }, [cleanup])
 
-  const startRecording = useCallback(async (automaticCut = false) => {
-    if (busyRef.current) return
-    if (automaticCut && (mode !== 'cut' || !images.length)) return
+  const startRecording = useCallback(async (automaticCut = false, options = {}) => {
+    const recordingImages = options.images || images
+    const repeats = options.repeats || cutRepeats
+    if (busyRef.current || (batchRef.current && !options.batch)) return
+    if (automaticCut && (mode !== 'cut' || !recordingImages.length)) return
     if (!window.MediaRecorder || !HTMLCanvasElement.prototype.captureStream) {
-      onRecordingStatus({ busy: false, error: '이 브라우저에서는 영상 녹화를 지원하지 않습니다.' })
+      reportStatus({ busy: false, error: '이 브라우저에서는 영상 녹화를 지원하지 않습니다.' })
       return
     }
     const { width: stageW, height: stageH } = stageSizeRef.current
@@ -78,9 +95,9 @@ export default function useRecorder({
     recorderRef.current = null
     const token = ++prepareTokenRef.current
     setIsPreparing(true)
-    onRecordingStatus({ busy: true, preparing: true, error: '' })
+    reportStatus({ busy: true, preparing: true, error: '' })
     try {
-      await Promise.all(images.map(async (img) => {
+      await Promise.all(recordingImages.map(async (img) => {
         let el = imageElementsRef.current.get(img.url)
         if (!el) {
           el = new Image()
@@ -92,12 +109,13 @@ export default function useRecorder({
     } catch {
       if (token !== prepareTokenRef.current) return
       cleanup()
-      onRecordingStatus({ busy: false, error: '이미지를 읽지 못했습니다. 파일을 확인해 주세요.' })
+      reportStatus({ busy: false, error: '이미지를 읽지 못했습니다. 파일을 확인해 주세요.' })
       return
     }
     if (token !== prepareTokenRef.current) return
     setIsPreparing(false)
-    const totalFrames = images.length * cutRepeats
+    const totalFrames = recordingImages.length * repeats
+    let hiddenAt = null
     let startedAt = null
     let previousIndex = -1
 
@@ -111,18 +129,22 @@ export default function useRecorder({
     const ctx = canvas.getContext('2d')
 
     const draw = (now) => {
+      if (hiddenAt !== null) {
+        rafRef.current = requestAnimationFrame(draw)
+        return
+      }
       if (startedAt === null) startedAt = now
       let automaticIndex = null
       if (automaticCut) {
         const frame = Math.floor((now - startedAt) * cutSpeed / 1000)
         if (frame >= totalFrames) {
-          stopRecording()
+          recorderRef.current?.stop()
           return
         }
-        automaticIndex = frame % images.length
+        automaticIndex = frame % recordingImages.length
         if (previousIndex !== automaticIndex) {
           previousIndex = automaticIndex
-          setCutRecordingIndex(automaticIndex)
+          setCutRecordingIndex(recordingImages[automaticIndex].previewIndex ?? automaticIndex)
         }
       }
       ctx.fillStyle = '#000000'
@@ -130,7 +152,7 @@ export default function useRecorder({
 
       if (mode === 'cut') {
         const idx = automaticIndex ?? (cutIndexRef ? cutIndexRef.current : 0)
-        const imgData = images[idx]
+        const imgData = recordingImages[idx]
         const imgEl = imgData ? imageElementsRef.current.get(imgData.url) : null
         if (imgEl && imgEl.complete && imgEl.naturalWidth > 0) {
           const size = Math.min(outW, outH) * (1000 / 1080)
@@ -192,7 +214,7 @@ export default function useRecorder({
       } catch (err) {
         console.error('MediaRecorder failed:', err)
         cleanup()
-        onRecordingStatus({ busy: false, error: '영상 녹화를 시작하지 못했습니다. 다른 브라우저에서 다시 시도해 주세요.' })
+        reportStatus({ busy: false, error: '영상 녹화를 시작하지 못했습니다. 다른 브라우저에서 다시 시도해 주세요.' })
         return
       }
     }
@@ -201,15 +223,14 @@ export default function useRecorder({
     recorder.ondataavailable = (e) => {
       if (e.data.size > 0) chunksRef.current.push(e.data)
     }
+    let finish
+    const finished = new Promise((resolve) => { finish = resolve })
     recorder.onstop = () => {
       const blob = new Blob(chunksRef.current, { type: mimeRef.current })
-      const url = URL.createObjectURL(blob)
       const ext = mimeRef.current.startsWith('video/mp4') ? 'mp4' : 'webm'
-      const a = document.createElement('a')
-      a.href = url
-      a.download = `poster_trail.${ext}`
-      a.click()
-      setTimeout(() => URL.revokeObjectURL(url), 10000)
+      chunksRef.current = []
+      if (!options.batch) downloadBlob(blob, `poster_trail.${ext}`)
+      finish({ blob, ext })
       recorderRef.current = null
       cleanup()
       setIsRecording(false)
@@ -217,25 +238,89 @@ export default function useRecorder({
 
     recorder.onerror = () => {
       recorder.onstop = null
+      finish(null)
       if (recorder.state !== 'inactive') recorder.stop()
       recorderRef.current = null
       cleanup()
       setIsRecording(false)
-      onRecordingStatus({ busy: false, error: '녹화 중 오류가 발생했습니다. 다시 시도해 주세요.' })
+      reportStatus({ busy: false, error: '녹화 중 오류가 발생했습니다. 다시 시도해 주세요.' })
     }
     try {
       recorder.start()
     } catch {
       recorder.onstop = null
       cleanup()
-      onRecordingStatus({ busy: false, error: '영상 녹화를 시작하지 못했습니다.' })
+      reportStatus({ busy: false, error: '영상 녹화를 시작하지 못했습니다.' })
       return
     }
     recorderRef.current = recorder
-    if (automaticCut) setCutRecordingIndex(0)
-    onRecordingStatus({ busy: true, preparing: false, error: '' })
+    if (automaticCut) {
+      const handleVisibility = () => {
+        if (document.hidden && recorder.state === 'recording') {
+          hiddenAt = performance.now()
+          recorder.pause()
+          reportStatus({ busy: true, paused: true, error: '' })
+        } else if (!document.hidden && hiddenAt !== null && recorder.state === 'paused') {
+          if (startedAt !== null) startedAt += performance.now() - hiddenAt
+          hiddenAt = null
+          recorder.resume()
+          reportStatus({ busy: true, paused: false, error: '' })
+        }
+      }
+      document.addEventListener('visibilitychange', handleVisibility)
+      visibilityCleanupRef.current = () => document.removeEventListener('visibilitychange', handleVisibility)
+      handleVisibility()
+    }
+    if (automaticCut) setCutRecordingIndex(recordingImages[0].previewIndex ?? 0)
+    reportStatus({ busy: true, preparing: false, error: '' })
     setIsRecording(true)
-  }, [cutRepeats, cutSpeed, onRecordingStatus, stopRecording, stageSizeRef, sizeRef, transformsRef, imageIndicesRef, images, count, placeholderColors, mode, cutIndexRef, cleanup])
+    return finished
+  }, [reportStatus, cutRepeats, cutSpeed, onRecordingStatus, stopRecording, stageSizeRef, sizeRef, transformsRef, imageIndicesRef, images, count, placeholderColors, mode, cutIndexRef, cleanup])
+
+  const startBatch = useCallback(async () => {
+    if (busyRef.current || batchRef.current || !images.length || mode !== 'cut') return
+    const groups = createCutBatches(images, cutBatchSize)
+    const batch = { completed: 0, total: groups.length, range: '', cancelled: false }
+    batchRef.current = batch
+    const parts = []
+    let zipError = null
+    const zip = new Zip((error, data) => {
+      if (error) zipError = error
+      else parts.push(data)
+    })
+    let errorMessage = ''
+    try {
+      for (const group of groups) {
+        if (batch.cancelled) break
+        batch.range = group.name
+        reportStatus({ preparing: true, error: '' })
+        const result = await startRecording(true, { images: group.images, repeats: cutBatchRepeats, batch: true })
+        if (batch.cancelled) break
+        if (!result || !result.blob.size) throw new Error('영상을 녹화하지 못했습니다. 이미지와 브라우저를 확인해 주세요.')
+        const file = new ZipPassThrough(`${group.name}.${result.ext}`)
+        zip.add(file)
+        file.push(new Uint8Array(await result.blob.arrayBuffer()), true)
+        if (zipError) throw zipError
+        batch.completed += 1
+        reportStatus({ error: '' })
+      }
+    } catch (error) {
+      errorMessage = error.message || '일괄 녹화 중 오류가 발생했습니다.'
+    }
+    if (batchRef.current !== batch) return
+    zip.end()
+    if (zipError) errorMessage = 'ZIP 파일을 만들지 못했습니다.'
+    if (batch.completed && !zipError) downloadBlob(new Blob(parts, { type: 'application/zip' }), 'poster_reels.zip')
+    batchRef.current = null
+    reportStatus({ busy: false, error: errorMessage,
+      message: batch.completed ? `${batch.completed}개 영상 ${batch.cancelled || errorMessage ? '완료분만 ' : ''}ZIP 저장 완료` : '저장할 완료 영상이 없습니다.' })
+  }, [images, mode, cutBatchSize, cutBatchRepeats, startRecording, reportStatus])
+
+  useEffect(() => {
+    if (cutBatchRequest === batchRequestRef.current) return
+    batchRequestRef.current = cutBatchRequest
+    startBatch()
+  }, [cutBatchRequest, startBatch])
 
   useEffect(() => {
     if (cutExportRequest === exportRequestRef.current) return
@@ -251,6 +336,9 @@ export default function useRecorder({
 
   useEffect(() => () => {
     prepareTokenRef.current += 1
+    if (batchRef.current) batchRef.current.cancelled = true
+    batchRef.current = null
+    visibilityCleanupRef.current?.()
     if (rafRef.current) cancelAnimationFrame(rafRef.current)
     const recorder = recorderRef.current
     if (recorder) {
@@ -265,7 +353,7 @@ export default function useRecorder({
       if (e.key.toLowerCase() !== 'r' || e.repeat) return
       const target = e.target
       if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA')) return
-      if (busyRef.current) stopRecording()
+      if (busyRef.current || batchRef.current) stopRecording()
       else startRecording()
     }
     window.addEventListener('keydown', handleKeyDown)

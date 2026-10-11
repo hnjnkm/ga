@@ -30,6 +30,9 @@ export default function App() {
   const [soccerBallSize, setSoccerBallSize] = useState(1.5)
   const [soccerPassTempo, setSoccerPassTempo] = useState(1)
   const [soccerPlayersPerTeam, setSoccerPlayersPerTeam] = useState(11)
+  const [cutBatchSize, setCutBatchSize] = useState(10)
+  const [cutBatchRequest, setCutBatchRequest] = useState(0)
+  const [cutBatchRepeats, setCutBatchRepeats] = useState(3)
   const [cutRepeats, setCutRepeats] = useState(1)
   const [cutExportRequest, setCutExportRequest] = useState(0)
   const [recordingStatus, setRecordingStatus] = useState({ busy: false, error: '' })
@@ -49,6 +52,11 @@ export default function App() {
   return (
     <div className={styles.app}>
       <ControlPanel
+        cutBatchSize={cutBatchSize}
+        setCutBatchSize={setCutBatchSize}
+        cutBatchRepeats={cutBatchRepeats}
+        setCutBatchRepeats={setCutBatchRepeats}
+        onCutBatch={() => setCutBatchRequest((n) => n + 1)}
         cutRepeats={cutRepeats}
         setCutRepeats={setCutRepeats}
         onCutExport={() => setCutExportRequest((n) => n + 1)}
@@ -90,6 +98,9 @@ export default function App() {
         setCutAutoMode={setCutAutoMode}
       />
       <Canvas
+        cutBatchSize={cutBatchSize}
+        cutBatchRepeats={cutBatchRepeats}
+        cutBatchRequest={cutBatchRequest}
         cutRepeats={cutRepeats}
         cutExportRequest={cutExportRequest}
         stopRequest={stopRequest}

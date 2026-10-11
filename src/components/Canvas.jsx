@@ -18,6 +18,7 @@ const PLACEHOLDER_COLORS = [
 ]
 
 export default function Canvas({
+  cutBatchSize, cutBatchRepeats, cutBatchRequest,
   cutRepeats, cutExportRequest, stopRequest, onRecordingStatus,
   mode,
   ratioValue,
@@ -146,6 +147,7 @@ export default function Canvas({
   })
 
   const { isRecording, cutRecordingIndex, isPreparing } = useRecorder({
+    cutBatchSize, cutBatchRepeats, cutBatchRequest,
     cutRepeats, cutExportRequest, stopRequest, cutSpeed, onRecordingStatus,
     stageSizeRef,
     sizeRef,

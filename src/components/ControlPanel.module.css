@@ -172,3 +172,5 @@
   color: #fff;
 }
 .panel button:disabled { opacity: 0.4; cursor: default; }
+
+.help { color: #888; font-size: 11px; line-height: 1.6; }

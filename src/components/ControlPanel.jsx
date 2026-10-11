@@ -4,6 +4,7 @@ import styles from './ControlPanel.module.css'
 const RATIOS = ['9:16', '1:1', '16:9', '4:5']
 
 export default function ControlPanel({
+  cutBatchSize, setCutBatchSize, cutBatchRepeats, setCutBatchRepeats, onCutBatch,
   cutRepeats, setCutRepeats, onCutExport, onStopRecording, recordingStatus,
   mode,
   setMode,
@@ -42,17 +43,18 @@ export default function ControlPanel({
 }) {
   const fileInputRef = useRef(null)
   const [isDragging, setIsDragging] = useState(false)
+  const [visibleThumbs, setVisibleThumbs] = useState(40)
 
   const addFiles = (fileList) => {
     const files = Array.from(fileList).filter((f) => f.type.startsWith('image/'))
     const newImages = files.map((file) => ({
       id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
       url: URL.createObjectURL(file),
+      name: file.name,
     }))
     if (mode === 'soccer') {
       setImages((prev) => [...prev, ...newImages].slice(0, 2))
-    } else if (mode === 'cut') {
-      setImages((prev) => [...prev, ...newImages].slice(0, 20))
+
     } else {
       setImages((prev) => [...prev, ...newImages])
     }
@@ -282,6 +284,29 @@ export default function ControlPanel({
         </section>
       )}
 
+      {mode === 'cut' && (
+        <section className={styles.section}>
+          <div className={styles.label}>일괄 영상 생성</div>
+          <label className={styles.labelRow} htmlFor="cut-batch-size">
+            <span className={styles.value}>영상당 이미지 수</span>
+            <input id="cut-batch-size" className={styles.repeatInput} type="number" min="1" max="1000" value={cutBatchSize}
+              onChange={(e) => setCutBatchSize(Math.max(1, Math.min(1000, Math.trunc(Number(e.target.value)) || 1)))} />
+          </label>
+          <label className={styles.labelRow} htmlFor="cut-batch-repeats">
+            <span className={styles.value}>각 영상 반복 횟수</span>
+            <input id="cut-batch-repeats" className={styles.repeatInput} type="number" min="1" max="100" value={cutBatchRepeats}
+              onChange={(e) => setCutBatchRepeats(Math.max(1, Math.min(100, Math.trunc(Number(e.target.value)) || 1)))} />
+          </label>
+          <div className={styles.value}>
+            {images.length}장 → 영상 {Math.ceil(images.length / cutBatchSize)}개 · 약 {(images.length * cutBatchRepeats / cutSpeed / 60).toFixed(1)}분
+          </div>
+          <button className={`${styles.toggleBtn} ${styles.active}`} disabled={!images.length} onClick={onCutBatch}>
+            일괄 녹화·ZIP 다운로드
+          </button>
+          <div className={styles.help}>파일명 숫자 순서로 묶습니다. 마지막 묶음은 남은 이미지로 만듭니다. 완료할 때까지 이 탭을 열어 두세요.</div>
+        </section>
+      )}
+
       {mode !== 'soccer' && mode !== 'cut' && (
       <section className={styles.section}>
         {mode === 'trail' && (
@@ -409,9 +434,9 @@ export default function ControlPanel({
         </div>
         {images.length > 0 && (
           <div className={styles.thumbList}>
-            {images.map((img) => (
+            {images.slice(0, visibleThumbs).map((img) => (
               <div key={img.id} className={styles.thumb}>
-                <img src={img.url} alt="" />
+                <img src={img.url} alt={img.name || ''} loading="lazy" />
                 <button className={styles.thumbRemove} onClick={() => removeImage(img.id)}>
                   ×
                 </button>
@@ -421,14 +446,19 @@ export default function ControlPanel({
         )}
       </section>
 
+      {images.length > visibleThumbs && (
+        <button className={styles.toggleBtn} onClick={() => setVisibleThumbs((n) => n + 40)}>이미지 더 보기 ({visibleThumbs}/{images.length})</button>
+      )}
       </fieldset>
       <div role="status" className={styles.value}>
-        {recordingStatus.busy && (recordingStatus.preparing ? '이미지 준비 중…' : '녹화 중…')}
+        {recordingStatus.busy && (recordingStatus.paused ? '일시정지 · 이 탭으로 돌아오면 계속됩니다.' : recordingStatus.preparing ? '이미지 준비 중…' : '녹화 중…')}
+        {recordingStatus.batch && <div>영상 {recordingStatus.completed}/{recordingStatus.total}개 완료 · {recordingStatus.range}</div>}
+        {recordingStatus.message}
         {recordingStatus.error}
       </div>
       {recordingStatus.busy && (
         <button className={styles.toggleBtn} onClick={onStopRecording}>
-          {recordingStatus.preparing ? '취소' : '녹화 종료·저장'}
+          {recordingStatus.batch ? '일괄 중단·완료 영상 저장' : recordingStatus.preparing ? '취소' : '녹화 종료·저장'}
         </button>
       )}
       <div className={styles.footer}>
