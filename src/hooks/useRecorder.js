@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Zip, ZipPassThrough } from 'fflate'
 import { createCutBatches } from '../utils/cutBatch.js'
+import { getRecordingSize } from '../utils/recordingSize.js'
 
 function downloadBlob(blob, filename) {
   const url = URL.createObjectURL(blob)
@@ -18,12 +19,10 @@ const MIME_CANDIDATES = [
   'video/webm',
 ]
 
-const MAX_DIMENSION = 1920
-const MAX_SCALE = 4
-
 export default function useRecorder({
   cutBatchSize, cutBatchRepeats, cutBatchRequest,
   cutRepeats, cutExportRequest, stopRequest, cutSpeed, onRecordingStatus,
+  outputRatio,
   stageSizeRef,
   sizeRef,
   transformsRef,
@@ -90,7 +89,7 @@ export default function useRecorder({
       return
     }
     const { width: stageW, height: stageH } = stageSizeRef.current
-    if (!stageW || !stageH) return
+    if (mode !== 'cut' && (!stageW || !stageH)) return
     busyRef.current = true
     recorderRef.current = null
     const token = ++prepareTokenRef.current
@@ -119,9 +118,7 @@ export default function useRecorder({
     let startedAt = null
     let previousIndex = -1
 
-    const scale = Math.min(MAX_SCALE, MAX_DIMENSION / Math.max(stageW, stageH))
-    const outW = Math.round(stageW * scale)
-    const outH = Math.round(stageH * scale)
+    const { width: outW, height: outH } = getRecordingSize(outputRatio)
 
     const canvas = document.createElement('canvas')
     canvas.width = outW
@@ -162,6 +159,8 @@ export default function useRecorder({
           ctx.drawImage(imgEl, (imgEl.naturalWidth - side) / 2, (imgEl.naturalHeight - side) / 2, side, side, x, y, size, size)
         }
       } else {
+        // Read the current preview size so resizing does not shift the output coordinates.
+        const scale = outW / (stageSizeRef.current.width || stageW)
         const { width: pw, height: ph } = sizeRef.current
 
         for (let i = 0; i < count; i++) {
@@ -275,7 +274,7 @@ export default function useRecorder({
     reportStatus({ busy: true, preparing: false, error: '' })
     setIsRecording(true)
     return finished
-  }, [reportStatus, cutRepeats, cutSpeed, onRecordingStatus, stopRecording, stageSizeRef, sizeRef, transformsRef, imageIndicesRef, images, count, placeholderColors, mode, cutIndexRef, cleanup])
+  }, [outputRatio, reportStatus, cutRepeats, cutSpeed, onRecordingStatus, stopRecording, stageSizeRef, sizeRef, transformsRef, imageIndicesRef, images, count, placeholderColors, mode, cutIndexRef, cleanup])
 
   const startBatch = useCallback(async () => {
     if (busyRef.current || batchRef.current || !images.length || mode !== 'cut') return

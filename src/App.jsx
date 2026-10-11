@@ -106,6 +106,7 @@ export default function App() {
         stopRequest={stopRequest}
         onRecordingStatus={setRecordingStatus}
         mode={mode}
+        outputRatio={ratio}
         ratioValue={RATIOS[ratio]}
         imageSize={imageSize}
         count={count}

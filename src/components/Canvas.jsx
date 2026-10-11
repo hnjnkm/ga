@@ -22,6 +22,7 @@ export default function Canvas({
   cutRepeats, cutExportRequest, stopRequest, onRecordingStatus,
   mode,
   ratioValue,
+  outputRatio,
   imageSize,
   count,
   images,
@@ -149,6 +150,7 @@ export default function Canvas({
   const { isRecording, cutRecordingIndex, isPreparing } = useRecorder({
     cutBatchSize, cutBatchRepeats, cutBatchRequest,
     cutRepeats, cutExportRequest, stopRequest, cutSpeed, onRecordingStatus,
+    outputRatio,
     stageSizeRef,
     sizeRef,
     transformsRef,
