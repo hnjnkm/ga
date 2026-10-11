@@ -20,7 +20,7 @@ const MIME_CANDIDATES = [
 ]
 
 export default function useRecorder({
-  cutBatchSize, cutBatchRepeats, cutBatchRequest,
+  cutDownloadMode, cutBatchSize, cutBatchRepeats, cutBatchRequest,
   cutRepeats, cutExportRequest, stopRequest, cutSpeed, onRecordingStatus,
   outputRatio,
   stageSizeRef,
@@ -283,10 +283,10 @@ export default function useRecorder({
     batchRef.current = batch
     const parts = []
     let zipError = null
-    const zip = new Zip((error, data) => {
+    const zip = cutDownloadMode === 'zip' ? new Zip((error, data) => {
       if (error) zipError = error
       else parts.push(data)
-    })
+    }) : null
     let errorMessage = ''
     try {
       for (const group of groups) {
@@ -296,10 +296,14 @@ export default function useRecorder({
         const result = await startRecording(true, { images: group.images, repeats: cutBatchRepeats, batch: true })
         if (batch.cancelled) break
         if (!result || !result.blob.size) throw new Error('영상을 녹화하지 못했습니다. 이미지와 브라우저를 확인해 주세요.')
-        const file = new ZipPassThrough(`${group.name}.${result.ext}`)
-        zip.add(file)
-        file.push(new Uint8Array(await result.blob.arrayBuffer()), true)
-        if (zipError) throw zipError
+        if (zip) {
+          const file = new ZipPassThrough(`${group.name}.${result.ext}`)
+          zip.add(file)
+          file.push(new Uint8Array(await result.blob.arrayBuffer()), true)
+          if (zipError) throw zipError
+        } else {
+          downloadBlob(result.blob, `${group.name}.${result.ext}`)
+        }
         batch.completed += 1
         reportStatus({ error: '' })
       }
@@ -307,13 +311,15 @@ export default function useRecorder({
       errorMessage = error.message || '일괄 녹화 중 오류가 발생했습니다.'
     }
     if (batchRef.current !== batch) return
-    zip.end()
-    if (zipError) errorMessage = 'ZIP 파일을 만들지 못했습니다.'
-    if (batch.completed && !zipError) downloadBlob(new Blob(parts, { type: 'application/zip' }), 'poster_reels.zip')
+    if (zip) {
+      zip.end()
+      if (zipError) errorMessage = 'ZIP 파일을 만들지 못했습니다.'
+      if (batch.completed && !zipError) downloadBlob(new Blob(parts, { type: 'application/zip' }), 'poster_reels.zip')
+    }
     batchRef.current = null
     reportStatus({ busy: false, error: errorMessage,
-      message: batch.completed ? `${batch.completed}개 영상 ${batch.cancelled || errorMessage ? '완료분만 ' : ''}ZIP 저장 완료` : '저장할 완료 영상이 없습니다.' })
-  }, [images, mode, cutBatchSize, cutBatchRepeats, startRecording, reportStatus])
+      message: zipError ? '' : batch.completed ? `${batch.completed}개 영상 ${zip ? 'ZIP ' : ''}다운로드 요청 완료${batch.cancelled ? ' · 일괄 작업 중단됨' : ''}` : '저장할 완료 영상이 없습니다.' })
+  }, [cutDownloadMode, images, mode, cutBatchSize, cutBatchRepeats, startRecording, reportStatus])
 
   useEffect(() => {
     if (cutBatchRequest === batchRequestRef.current) return

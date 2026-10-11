@@ -30,6 +30,7 @@ export default function App() {
   const [soccerBallSize, setSoccerBallSize] = useState(1.5)
   const [soccerPassTempo, setSoccerPassTempo] = useState(1)
   const [soccerPlayersPerTeam, setSoccerPlayersPerTeam] = useState(11)
+  const [cutDownloadMode, setCutDownloadMode] = useState('individual')
   const [cutBatchSize, setCutBatchSize] = useState(10)
   const [cutBatchRequest, setCutBatchRequest] = useState(0)
   const [cutBatchRepeats, setCutBatchRepeats] = useState(3)
@@ -52,6 +53,8 @@ export default function App() {
   return (
     <div className={styles.app}>
       <ControlPanel
+        cutDownloadMode={cutDownloadMode}
+        setCutDownloadMode={setCutDownloadMode}
         cutBatchSize={cutBatchSize}
         setCutBatchSize={setCutBatchSize}
         cutBatchRepeats={cutBatchRepeats}
@@ -98,6 +101,7 @@ export default function App() {
         setCutAutoMode={setCutAutoMode}
       />
       <Canvas
+        cutDownloadMode={cutDownloadMode}
         cutBatchSize={cutBatchSize}
         cutBatchRepeats={cutBatchRepeats}
         cutBatchRequest={cutBatchRequest}

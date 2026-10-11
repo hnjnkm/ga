@@ -18,7 +18,7 @@ const PLACEHOLDER_COLORS = [
 ]
 
 export default function Canvas({
-  cutBatchSize, cutBatchRepeats, cutBatchRequest,
+  cutDownloadMode, cutBatchSize, cutBatchRepeats, cutBatchRequest,
   cutRepeats, cutExportRequest, stopRequest, onRecordingStatus,
   mode,
   ratioValue,
@@ -148,7 +148,7 @@ export default function Canvas({
   })
 
   const { isRecording, cutRecordingIndex, isPreparing } = useRecorder({
-    cutBatchSize, cutBatchRepeats, cutBatchRequest,
+    cutDownloadMode, cutBatchSize, cutBatchRepeats, cutBatchRequest,
     cutRepeats, cutExportRequest, stopRequest, cutSpeed, onRecordingStatus,
     outputRatio,
     stageSizeRef,
@@ -201,7 +201,7 @@ export default function Canvas({
             playersPerTeam={soccerPlayersPerTeam}
           />
         )}
-        {mode !== 'soccer' && Array.from({ length: count }).map((_, i) => {
+        {mode !== 'soccer' && mode !== 'cut' && Array.from({ length: count }).map((_, i) => {
           const imgIdx = images.length > 0 ? (cycleOffset + i) % images.length : null
           imageIndicesRef.current[i] = imgIdx
           return (

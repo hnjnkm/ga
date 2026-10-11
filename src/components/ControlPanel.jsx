@@ -4,6 +4,7 @@ import styles from './ControlPanel.module.css'
 const RATIOS = ['9:16', '1:1', '16:9', '4:5']
 
 export default function ControlPanel({
+  cutDownloadMode, setCutDownloadMode,
   cutBatchSize, setCutBatchSize, cutBatchRepeats, setCutBatchRepeats, onCutBatch,
   cutRepeats, setCutRepeats, onCutExport, onStopRecording, recordingStatus,
   mode,
@@ -300,10 +301,22 @@ export default function ControlPanel({
           <div className={styles.value}>
             {images.length}장 → 영상 {Math.ceil(images.length / cutBatchSize)}개 · 약 {(images.length * cutBatchRepeats / cutSpeed / 60).toFixed(1)}분
           </div>
+          <div className={styles.label}>다운로드 방식</div>
+          <div className={styles.toggleRow}>
+            <button aria-pressed={cutDownloadMode === 'individual'} className={`${styles.toggleBtn} ${cutDownloadMode === 'individual' ? styles.active : ''}`} onClick={() => setCutDownloadMode('individual')}>
+              개별 다운로드
+            </button>
+            <button aria-pressed={cutDownloadMode === 'zip'} className={`${styles.toggleBtn} ${cutDownloadMode === 'zip' ? styles.active : ''}`} onClick={() => setCutDownloadMode('zip')}>
+              ZIP으로 받기
+            </button>
+          </div>
           <button className={`${styles.toggleBtn} ${styles.active}`} disabled={!images.length} onClick={onCutBatch}>
-            일괄 녹화·ZIP 다운로드
+            {cutDownloadMode === 'zip' ? '일괄 녹화·ZIP 다운로드' : '일괄 녹화·개별 다운로드'}
           </button>
-          <div className={styles.help}>파일명 숫자 순서로 묶습니다. 마지막 묶음은 남은 이미지로 만듭니다. 완료할 때까지 이 탭을 열어 두세요.</div>
+          <div className={styles.help}>
+            파일명 숫자 순서로 묶습니다. 마지막 묶음은 남은 이미지로 만듭니다.
+            {cutDownloadMode === 'zip' ? ' 모든 영상이 완성되면 ZIP 하나로 저장합니다.' : ' 영상마다 완성 즉시 다운로드합니다. Chrome에서 여러 파일 자동 다운로드를 허용해 주세요.'}
+          </div>
         </section>
       )}
 
@@ -458,7 +471,7 @@ export default function ControlPanel({
       </div>
       {recordingStatus.busy && (
         <button className={styles.toggleBtn} onClick={onStopRecording}>
-          {recordingStatus.batch ? '일괄 중단·완료 영상 저장' : recordingStatus.preparing ? '취소' : '녹화 종료·저장'}
+          {recordingStatus.batch ? (cutDownloadMode === 'zip' ? '일괄 중단·완료 영상 저장' : '일괄 녹화 중단') : recordingStatus.preparing ? '취소' : '녹화 종료·저장'}
         </button>
       )}
       <div className={styles.footer}>
