@@ -42,6 +42,8 @@ export default function ControlPanel({
   cutAutoMode,
   setCutAutoMode,
 }) {
+  const generatingMode = mode === 'cut-generate'
+  const isCut = mode === 'cut' || generatingMode
   const fileInputRef = useRef(null)
   const [isDragging, setIsDragging] = useState(false)
   const [visibleThumbs, setVisibleThumbs] = useState(40)
@@ -122,7 +124,10 @@ export default function ControlPanel({
             className={`${styles.toggleBtn} ${mode === 'cut' ? styles.active : ''}`}
             onClick={() => setMode('cut')}
           >
-            컷
+            컷 녹화
+          </button>
+          <button className={`${styles.toggleBtn} ${generatingMode ? styles.active : ''}`} onClick={() => setMode('cut-generate')}>
+            컷 생성
           </button>
         </div>
       </section>
@@ -142,7 +147,7 @@ export default function ControlPanel({
         </div>
       </section>
 
-      {mode !== 'soccer' && mode !== 'cut' && (
+      {mode !== 'soccer' && !isCut && (
       <section className={styles.section}>
         <div className={styles.labelRow}>
           <span className={styles.label}>이미지 크기</span>
@@ -159,7 +164,7 @@ export default function ControlPanel({
       </section>
       )}
 
-      {mode !== 'soccer' && mode !== 'cut' && (
+      {mode !== 'soccer' && !isCut && (
       <section className={styles.section}>
         <div className={styles.labelRow}>
           <span className={styles.label}>이미지 개수</span>
@@ -233,8 +238,9 @@ export default function ControlPanel({
       </section>
       )}
 
-      {mode === 'cut' && (
+      {isCut && (
       <section className={styles.section}>
+        {!generatingMode && <>
         <div className={styles.label}>전환 모드</div>
         <div className={styles.toggleRow}>
           <button
@@ -250,6 +256,7 @@ export default function ControlPanel({
             수동 (스페이스)
           </button>
         </div>
+        </>}
         <>
             <div className={styles.labelRow}>
               <span className={styles.label}>전환 속도</span>
@@ -268,10 +275,10 @@ export default function ControlPanel({
       </section>
       )}
 
-      {mode === 'cut' && (
+      {isCut && (
         <section className={styles.section}>
           <label className={styles.labelRow} htmlFor="cut-repeats">
-            <span className={styles.label}>녹화 반복 횟수</span>
+            <span className={styles.label}>{generatingMode ? '생성 반복 횟수' : '녹화 반복 횟수'}</span>
             <input id="cut-repeats" className={styles.repeatInput} type="number" min="1" max="100" step="1"
               value={cutRepeats} onChange={(e) => setCutRepeats(Math.max(1, Math.min(100, Math.trunc(Number(e.target.value)) || 1)))} />
           </label>
@@ -279,15 +286,15 @@ export default function ControlPanel({
             {images.length}장 × {cutRepeats}회 · 약 {(images.length * cutRepeats / cutSpeed).toFixed(1)}초
           </div>
           <button className={`${styles.toggleBtn} ${styles.active}`} disabled={!images.length} onClick={onCutExport}>
-            자동 녹화·다운로드
+            {generatingMode ? 'MP4 생성·다운로드' : '자동 녹화·다운로드'}
           </button>
-          <div className={styles.value}>첫 이미지부터 재생 후 자동 저장됩니다.</div>
+          <div className={styles.value}>{generatingMode ? '파일명 숫자 순서로 영상을 직접 생성합니다. 다른 탭에서도 생성 작업은 이어집니다.' : '첫 이미지부터 재생 후 자동 저장됩니다.'}</div>
         </section>
       )}
 
-      {mode === 'cut' && (
+      {isCut && (
         <section className={styles.section}>
-          <div className={styles.label}>일괄 영상 생성</div>
+          <div className={styles.label}>{generatingMode ? '일괄 MP4 생성' : '일괄 영상 녹화'}</div>
           <label className={styles.labelRow} htmlFor="cut-batch-size">
             <span className={styles.value}>영상당 이미지 수</span>
             <input id="cut-batch-size" className={styles.repeatInput} type="number" min="1" max="1000" value={cutBatchSize}
@@ -299,7 +306,7 @@ export default function ControlPanel({
               onChange={(e) => setCutBatchRepeats(Math.max(1, Math.min(100, Math.trunc(Number(e.target.value)) || 1)))} />
           </label>
           <div className={styles.value}>
-            {images.length}장 → 영상 {Math.ceil(images.length / cutBatchSize)}개 · 약 {(images.length * cutBatchRepeats / cutSpeed / 60).toFixed(1)}분
+            {images.length}장 → 영상 {Math.ceil(images.length / cutBatchSize)}개 · {generatingMode ? '총 영상 길이' : '약'} {(images.length * cutBatchRepeats / cutSpeed / 60).toFixed(1)}분
           </div>
           <div className={styles.label}>다운로드 방식</div>
           <div className={styles.toggleRow}>
@@ -311,7 +318,7 @@ export default function ControlPanel({
             </button>
           </div>
           <button className={`${styles.toggleBtn} ${styles.active}`} disabled={!images.length} onClick={onCutBatch}>
-            {cutDownloadMode === 'zip' ? '일괄 녹화·ZIP 다운로드' : '일괄 녹화·개별 다운로드'}
+            {generatingMode ? (cutDownloadMode === 'zip' ? '일괄 생성·ZIP 다운로드' : '일괄 생성·개별 다운로드') : (cutDownloadMode === 'zip' ? '일괄 녹화·ZIP 다운로드' : '일괄 녹화·개별 다운로드')}
           </button>
           <div className={styles.help}>
             파일명 숫자 순서로 묶습니다. 마지막 묶음은 남은 이미지로 만듭니다.
@@ -320,7 +327,7 @@ export default function ControlPanel({
         </section>
       )}
 
-      {mode !== 'soccer' && mode !== 'cut' && (
+      {mode !== 'soccer' && !isCut && (
       <section className={styles.section}>
         {mode === 'trail' && (
           <>
@@ -464,20 +471,20 @@ export default function ControlPanel({
       )}
       </fieldset>
       <div role="status" className={styles.value}>
-        {recordingStatus.busy && (recordingStatus.paused ? '일시정지 · 이 탭으로 돌아오면 계속됩니다.' : recordingStatus.preparing ? '이미지 준비 중…' : '녹화 중…')}
+        {recordingStatus.busy && (recordingStatus.generating ? `영상 생성 중… ${Math.round((recordingStatus.progress || 0) * 100)}%` : recordingStatus.paused ? '일시정지 · 이 탭으로 돌아오면 계속됩니다.' : recordingStatus.preparing ? '이미지 준비 중…' : '녹화 중…')}
         {recordingStatus.batch && <div>영상 {recordingStatus.completed}/{recordingStatus.total}개 완료 · {recordingStatus.range}</div>}
         {recordingStatus.message}
         {recordingStatus.error}
       </div>
       {recordingStatus.busy && (
         <button className={styles.toggleBtn} onClick={onStopRecording}>
-          {recordingStatus.batch ? (cutDownloadMode === 'zip' ? '일괄 중단·완료 영상 저장' : '일괄 녹화 중단') : recordingStatus.preparing ? '취소' : '녹화 종료·저장'}
+          {recordingStatus.generating ? (cutDownloadMode === 'zip' && recordingStatus.batch ? '생성 중단·완료 영상 저장' : '생성 중단') : recordingStatus.batch ? (cutDownloadMode === 'zip' ? '일괄 중단·완료 영상 저장' : '일괄 녹화 중단') : recordingStatus.preparing ? '취소' : '녹화 종료·저장'}
         </button>
       )}
       <div className={styles.footer}>
         {mode === 'burst' && <>SPACE &nbsp;→&nbsp; 버스트 / 모으기<br /></>}
         {mode === 'cut' && !cutAutoMode && <>SPACE &nbsp;→&nbsp; 다음 컷<br /></>}
-        R &nbsp;→&nbsp; 녹화 시작 / 종료
+        {generatingMode ? '창 크기와 무관한 고정 해상도 MP4 생성' : <>R &nbsp;→&nbsp; 녹화 시작 / 종료</>}
       </div>
     </div>
   )

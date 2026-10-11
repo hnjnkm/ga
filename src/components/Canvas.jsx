@@ -6,6 +6,7 @@ import useOrbit from '../hooks/useOrbit.js'
 import useRepel from '../hooks/useRepel.js'
 import useGravity from '../hooks/useGravity.js'
 import useRecorder from '../hooks/useRecorder.js'
+import useCutGenerator from '../hooks/useCutGenerator.js'
 import SoccerField from './SoccerField.jsx'
 import CutDisplay from './CutDisplay.jsx'
 
@@ -147,6 +148,10 @@ export default function Canvas({
     transformsRef,
   })
 
+  const generator = useCutGenerator({ mode, images, cutDownloadMode, cutBatchSize, cutBatchRepeats,
+    cutBatchRequest, cutRepeats, cutExportRequest, stopRequest, cutSpeed, outputRatio, onRecordingStatus })
+  const isCut = mode === 'cut' || mode === 'cut-generate'
+
   const { isRecording, cutRecordingIndex, isPreparing } = useRecorder({
     cutDownloadMode, cutBatchSize, cutBatchRepeats, cutBatchRequest,
     cutRepeats, cutExportRequest, stopRequest, cutSpeed, onRecordingStatus,
@@ -168,10 +173,10 @@ export default function Canvas({
 
   return (
     <div className={styles.canvasArea} ref={containerRef}>
-      {isRecording && (
+      {(isRecording || generator.busy) && (
         <div className={styles.recIndicator}>
           <span className={styles.recDot} />
-          REC
+          {generator.busy ? '생성 중' : 'REC'}
         </div>
       )}
       <div
@@ -179,14 +184,14 @@ export default function Canvas({
         ref={stageRef}
         style={{ width: stageSize.width, height: stageSize.height }}
       >
-        {mode === 'cut' && (
+        {isCut && (
           <CutDisplay
-            active={mode === 'cut'}
-            recordingIndex={cutRecordingIndex}
-            paused={isPreparing}
+            active={isCut}
+            recordingIndex={mode === 'cut-generate' ? generator.index : cutRecordingIndex}
+            paused={isPreparing || generator.busy}
             images={images}
             speed={cutSpeed}
-            autoMode={cutAutoMode}
+            autoMode={mode === 'cut-generate' || cutAutoMode}
             indexRef={cutIndexRef}
           />
         )}
@@ -201,7 +206,7 @@ export default function Canvas({
             playersPerTeam={soccerPlayersPerTeam}
           />
         )}
-        {mode !== 'soccer' && mode !== 'cut' && Array.from({ length: count }).map((_, i) => {
+        {mode !== 'soccer' && !isCut && Array.from({ length: count }).map((_, i) => {
           const imgIdx = images.length > 0 ? (cycleOffset + i) % images.length : null
           imageIndicesRef.current[i] = imgIdx
           return (

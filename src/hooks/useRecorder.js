@@ -355,7 +355,7 @@ export default function useRecorder({
 
   useEffect(() => {
     const handleKeyDown = (e) => {
-      if (e.key.toLowerCase() !== 'r' || e.repeat) return
+      if (mode === 'cut-generate' || e.key.toLowerCase() !== 'r' || e.repeat) return
       const target = e.target
       if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA')) return
       if (busyRef.current || batchRef.current) stopRecording()
@@ -363,7 +363,7 @@ export default function useRecorder({
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [isRecording, startRecording, stopRecording])
+  }, [mode, isRecording, startRecording, stopRecording])
 
   return { isRecording, isPreparing, cutRecordingIndex }
 }
