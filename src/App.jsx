@@ -30,6 +30,10 @@ export default function App() {
   const [soccerBallSize, setSoccerBallSize] = useState(1.5)
   const [soccerPassTempo, setSoccerPassTempo] = useState(1)
   const [soccerPlayersPerTeam, setSoccerPlayersPerTeam] = useState(11)
+  const [cutRepeats, setCutRepeats] = useState(1)
+  const [cutExportRequest, setCutExportRequest] = useState(0)
+  const [recordingStatus, setRecordingStatus] = useState({ busy: false, error: '' })
+  const [stopRequest, setStopRequest] = useState(0)
   const [cutSpeed, setCutSpeed] = useState(2)
   const [cutAutoMode, setCutAutoMode] = useState(true)
 
@@ -45,6 +49,11 @@ export default function App() {
   return (
     <div className={styles.app}>
       <ControlPanel
+        cutRepeats={cutRepeats}
+        setCutRepeats={setCutRepeats}
+        onCutExport={() => setCutExportRequest((n) => n + 1)}
+        onStopRecording={() => setStopRequest((n) => n + 1)}
+        recordingStatus={recordingStatus}
         mode={mode}
         setMode={setMode}
         ratio={ratio}
@@ -81,6 +90,10 @@ export default function App() {
         setCutAutoMode={setCutAutoMode}
       />
       <Canvas
+        cutRepeats={cutRepeats}
+        cutExportRequest={cutExportRequest}
+        stopRequest={stopRequest}
+        onRecordingStatus={setRecordingStatus}
         mode={mode}
         ratioValue={RATIOS[ratio]}
         imageSize={imageSize}

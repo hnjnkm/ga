@@ -4,6 +4,7 @@ import styles from './ControlPanel.module.css'
 const RATIOS = ['9:16', '1:1', '16:9', '4:5']
 
 export default function ControlPanel({
+  cutRepeats, setCutRepeats, onCutExport, onStopRecording, recordingStatus,
   mode,
   setMode,
   ratio,
@@ -74,6 +75,7 @@ export default function ControlPanel({
 
   return (
     <div className={styles.panel}>
+      <fieldset className={styles.controls} disabled={recordingStatus.busy}>
       <section className={styles.section}>
         <div className={styles.label}>모드</div>
         <div className={styles.toggleRow}>
@@ -245,8 +247,7 @@ export default function ControlPanel({
             수동 (스페이스)
           </button>
         </div>
-        {cutAutoMode && (
-          <>
+        <>
             <div className={styles.labelRow}>
               <span className={styles.label}>전환 속도</span>
               <span className={styles.value}>{cutSpeed}장/초</span>
@@ -260,9 +261,25 @@ export default function ControlPanel({
               onChange={(e) => setCutSpeed(Number(e.target.value))}
               className={styles.slider}
             />
-          </>
-        )}
+        </>
       </section>
+      )}
+
+      {mode === 'cut' && (
+        <section className={styles.section}>
+          <label className={styles.labelRow} htmlFor="cut-repeats">
+            <span className={styles.label}>녹화 반복 횟수</span>
+            <input id="cut-repeats" className={styles.repeatInput} type="number" min="1" max="100" step="1"
+              value={cutRepeats} onChange={(e) => setCutRepeats(Math.max(1, Math.min(100, Math.trunc(Number(e.target.value)) || 1)))} />
+          </label>
+          <div className={styles.value}>
+            {images.length}장 × {cutRepeats}회 · 약 {(images.length * cutRepeats / cutSpeed).toFixed(1)}초
+          </div>
+          <button className={`${styles.toggleBtn} ${styles.active}`} disabled={!images.length} onClick={onCutExport}>
+            자동 녹화·다운로드
+          </button>
+          <div className={styles.value}>첫 이미지부터 재생 후 자동 저장됩니다.</div>
+        </section>
       )}
 
       {mode !== 'soccer' && mode !== 'cut' && (
@@ -404,6 +421,16 @@ export default function ControlPanel({
         )}
       </section>
 
+      </fieldset>
+      <div role="status" className={styles.value}>
+        {recordingStatus.busy && (recordingStatus.preparing ? '이미지 준비 중…' : '녹화 중…')}
+        {recordingStatus.error}
+      </div>
+      {recordingStatus.busy && (
+        <button className={styles.toggleBtn} onClick={onStopRecording}>
+          {recordingStatus.preparing ? '취소' : '녹화 종료·저장'}
+        </button>
+      )}
       <div className={styles.footer}>
         {mode === 'burst' && <>SPACE &nbsp;→&nbsp; 버스트 / 모으기<br /></>}
         {mode === 'cut' && !cutAutoMode && <>SPACE &nbsp;→&nbsp; 다음 컷<br /></>}

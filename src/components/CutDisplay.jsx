@@ -2,7 +2,7 @@ import { useState, useCallback } from 'react'
 import styles from './CutDisplay.module.css'
 import useCut from '../hooks/useCut.js'
 
-export default function CutDisplay({ active, images, speed, autoMode, indexRef }) {
+export default function CutDisplay({ active, images, speed, autoMode, indexRef, recordingIndex = null, paused = false }) {
   const [currentIndex, setCurrentIndex] = useState(0)
 
   const handleIndexChange = useCallback((i) => {
@@ -10,9 +10,9 @@ export default function CutDisplay({ active, images, speed, autoMode, indexRef }
     if (indexRef) indexRef.current = i
   }, [indexRef])
 
-  useCut({ images, active, speed, autoMode, onIndexChange: handleIndexChange })
+  useCut({ images, active: active && recordingIndex === null && !paused, speed, autoMode, onIndexChange: handleIndexChange })
 
-  const img = images[currentIndex]
+  const img = images[recordingIndex ?? currentIndex]
 
   return (
     <div className={styles.wrap}>
